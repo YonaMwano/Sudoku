@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sudoku Master — Professional Puzzle Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' },
+            accent: { 400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed' },
+            success: { 400: '#4ade80', 500: '#22c55e', 600: '#16a34a' },
+            danger: { 400: '#f87171', 500: '#ef4444', 600: '#dc2626' },
+            surface: { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 800: '#1e293b', 900: '#0f172a', 950: '#020617' }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'monospace']
+          },
+          boxShadow: {
+            'glow': '0 0 20px rgba(59, 130, 246, 0.35)',
+            'glow-success': '0 0 20px rgba(34, 197, 94, 0.35)',
+            'card': '0 10px 40px -10px rgba(0,0,0,0.3)'
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --cell-size: min(9.5vw, 52px);
+      --grid-gap: 2px;
+    }
+    body {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      min-height: 100vh;
+    }
+    .sudoku-grid {
+      display: grid;
+      grid-template-columns: repeat(9, var(--cell-size));
+      grid-template-rows: repeat(9, var(--cell-size));
+      gap: var(--grid-gap);
+      background: #334155;
+      padding: 4px;
+      border-radius: 12px;
+      box-shadow: 0 0 0 3px #475569, 0 20px 50px -15px rgba(0,0,0,0.5);
+    }
+    .cell {
+      width: var(--cell-size);
+      height: var(--cell-size);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      font-size: calc(var(--cell-size) * 0.48);
+      background: #1e293b;
+      color: #e2e8f0;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+      position: relative;
+      border-radius: 4px;
+    }
+    .cell:hover:not(.given):not(.solved) {
+      background: #334155;
+    }
+    .cell.selected {
+      background: #1e40af !important;
+      box-shadow: inset 0 0 0 2px #60a5fa;
+      color: #fff;
+    }
+    .cell.given {
+      background: #0f172a;
+      color: #94a3b8;
+      font-weight: 700;
+      cursor: default;
+    }
+    .cell.user {
+      color: #60a5fa;
+    }
+    .cell.error {
+      background: #7f1d1d !important;
+      color: #fca5a5 !important;
+      animation: shake 0.3s ease;
+    }
+    .cell.hint {
+      background: #14532d !important;
+      color: #86efac !important;
+      animation: pulse-hint 0.6s ease;
+    }
+    .cell.highlight-same {
+      background: #1e3a5f;
+    }
+    .cell.highlight-related {
+      background: #1a2332;
+    }
+    /* Thicker borders for 3x3 boxes */
+    .cell[data-row="2"], .cell[data-row="5"] { border-bottom: 3px solid #64748b; }
+    .cell[data-col="2"], .cell[data-col="5"] { border-right: 3px solid #64748b; }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-3px); }
+      75% { transform: translateX(3px); }
+    }
+    @keyframes pulse-hint {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+      100% { transform: scale(1); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade {
+      animation: fadeIn 0.4s ease forwards;
+    }
+    .numpad-btn {
+      width: 48px;
+      height: 48px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      font-size: 1.25rem;
+      border-radius: 10px;
+      transition: all 0.15s ease;
+    }
+    .numpad-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(59, 130, 246, 0.3);
+    }
+    .numpad-btn:active {
+      transform: translateY(0);
+    }
+    .stat-card {
+      background: rgba(30, 41, 59, 0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(71, 85, 105, 0.5);
+    }
+    .btn-action {
+      transition: all 0.2s ease;
+    }
+    .btn-action:hover {
+      transform: translateY(-1px);
+    }
+    .difficulty-btn.active {
+      background: linear-gradient(135deg, #2563eb, #7c3aed) !important;
+      border-color: transparent !important;
+      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+    }
+    .timer {
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.05em;
+    }
+    /* Confetti / win overlay */
+    .win-overlay {
+      background: rgba(2, 6, 23, 0.85);
+      backdrop-filter: blur(8px);
+    }
+    /* Responsive */
+    @media (max-width: 640px) {
+      :root { --cell-size: min(10.2vw, 40px); }
+      .numpad-btn { width: 42px; height: 42px; font-size: 1.1rem; }
+    }
+  </style>
+</head>
+<body class="h-full text-slate-100 font-sans antialiased">
+  <!-- Header -->
+  <header class="border-b border-slate-700/60 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center shadow-glow">
+          <i class="bi bi-grid-3x3-gap-fill text-white text-lg"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-400 to-violet-400 bg-clip-text text-transparent">
+            Sudoku Master
+          </h1>
+          <p class="text-xs text-slate-400 -mt-0.5">Professional Puzzle Generator</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="hidden sm:flex items-center gap-2 text-sm text-slate-400">
+          <i class="bi bi-lightning-charge-fill text-amber-400"></i>
+          <span>Real-time • Instant feedback</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container mx-auto px-4 py-6 lg:py-8">
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
+
+      <!-- Left sidebar: Controls -->
+      <aside class="xl:col-span-3 space-y-5 animate-fade">
+        <!-- Difficulty -->
+        <div class="stat-card rounded-2xl p-5">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <i class="bi bi-sliders"></i> Difficulty
+          </h2>
+          <div class="grid grid-cols-2 gap-2" id="difficulty-group">
+            <button data-diff="easy" class="difficulty-btn btn btn-outline-light btn-sm py-2 rounded-xl border-slate-600 text-slate-300 hover:bg-slate-700 active">
+              Easy
+            </button>
+            <button data-diff="medium" class="difficulty-btn btn btn-outline-light btn-sm py-2 rounded-xl border-slate-600 text-slate-300 hover:bg-slate-700">
+              Medium
+            </button>
+            <button data-diff="hard" class="difficulty-btn btn btn-outline-light btn-sm py-2 rounded-xl border-slate-600 text-slate-300 hover:bg-slate-700">
+              Hard
+            </button>
+            <button data-diff="expert" class="difficulty-btn btn btn-outline-light btn-sm py-2 rounded-xl border-slate-600 text-slate-300 hover:bg-slate-700">
+              Expert
+            </button>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="stat-card rounded-2xl p-5 space-y-3">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <i class="bi bi-lightning"></i> Actions
+          </h2>
+          <button id="btn-new" class="btn-action w-full btn btn-primary py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-glow">
+            <i class="bi bi-plus-circle"></i> New Puzzle
+          </button>
+          <button id="btn-check" class="btn-action w-full btn btn-outline-info py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 border-slate-500 text-slate-200 hover:bg-slate-700">
+            <i class="bi bi-check2-circle"></i> Check Progress
+          </button>
+          <button id="btn-hint" class="btn-action w-full btn btn-outline-success py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 border-slate-500 text-slate-200 hover:bg-slate-700">
+            <i class="bi bi-lightbulb"></i> Get Hint
+          </button>
+          <button id="btn-solve" class="btn-action w-full btn btn-outline-warning py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 border-slate-500 text-slate-200 hover:bg-slate-700">
+            <i class="bi bi-magic"></i> Reveal Solution
+          </button>
+          <button id="btn-reset" class="btn-action w-full btn btn-outline-secondary py-2.5 rounded-xl font-medium flex items-center justify-center gap-2 border-slate-600 text-slate-300 hover:bg-slate-700">
+            <i class="bi bi-arrow-counterclockwise"></i> Reset Board
+          </button>
+        </div>
+
+        <!-- Stats -->
+        <div class="stat-card rounded-2xl p-5">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <i class="bi bi-bar-chart"></i> Session Stats
+          </h2>
+          <div class="space-y-3">
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400 text-sm">Timer</span>
+              <span id="timer" class="timer font-mono text-lg font-semibold text-blue-400">00:00</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400 text-sm">Hints used</span>
+              <span id="hints-used" class="font-mono font-semibold text-emerald-400">0</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400 text-sm">Mistakes</span>
+              <span id="mistakes" class="font-mono font-semibold text-rose-400">0</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-slate-400 text-sm">Filled</span>
+              <span id="filled" class="font-mono font-semibold text-violet-400">0 / 81</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center: Board -->
+      <section class="xl:col-span-6 flex flex-col items-center animate-fade" style="animation-delay: 0.1s">
+        <div class="mb-4 flex items-center gap-3">
+          <span id="diff-badge" class="px-3 py-1 rounded-full text-xs font-semibold bg-blue-600/30 text-blue-300 border border-blue-500/40">
+            MEDIUM
+          </span>
+          <span id="status-msg" class="text-sm text-slate-400">Ready to play</span>
+        </div>
+
+        <div id="board-wrapper" class="relative">
+          <div id="sudoku-board" class="sudoku-grid"></div>
+
+          <!-- Loading overlay -->
+          <div id="loading-overlay" class="absolute inset-0 bg-slate-900/80 rounded-xl flex items-center justify-center hidden z-20">
+            <div class="text-center">
+              <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
+              <p class="text-slate-300 font-medium">Generating unique puzzle…</p>
+            </div>
+          </div>
+
+          <!-- Win overlay -->
+          <div id="win-overlay" class="win-overlay absolute inset-0 rounded-xl flex items-center justify-center hidden z-30">
+            <div class="text-center p-6">
+              <div class="text-6xl mb-3">🏆</div>
+              <h3 class="text-2xl font-bold text-white mb-1">Puzzle Solved!</h3>
+              <p class="text-slate-300 mb-4">Great job — you completed it in <span id="win-time" class="text-blue-400 font-mono font-semibold"></span></p>
+              <button id="btn-play-again" class="btn btn-primary px-5 py-2 rounded-xl font-semibold shadow-glow">
+                Play Again
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes / Notes mode toggle -->
+        <div class="mt-5 flex items-center gap-4">
+          <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="notes-mode" class="form-check-input w-5 h-5 rounded border-slate-500 bg-slate-700" />
+            <span class="text-sm text-slate-300">Notes mode <kbd class="px-1.5 py-0.5 text-xs bg-slate-700 rounded border border-slate-600">N</kbd></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Right: Numpad + Tips -->
+      <aside class="xl:col-span-3 space-y-5 animate-fade" style="animation-delay: 0.15s">
+        <div class="stat-card rounded-2xl p-5">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <i class="bi bi-keyboard"></i> Number Pad
+          </h2>
+          <div class="grid grid-cols-3 gap-2 justify-items-center mb-3" id="numpad">
+            <!-- filled by JS -->
+          </div>
+          <button id="btn-erase" class="w-full btn btn-outline-danger py-2 rounded-xl font-medium flex items-center justify-center gap-2 border-slate-600 text-slate-300 hover:bg-rose-900/40 mt-2">
+            <i class="bi bi-eraser"></i> Erase <kbd class="ms-1 px-1.5 py-0.5 text-xs bg-slate-700 rounded border border-slate-600">Del</kbd>
+          </button>
+        </div>
+
+        <div class="stat-card rounded-2xl p-5">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <i class="bi bi-info-circle"></i> How to Play
+          </h2>
+          <ul class="text-sm text-slate-400 space-y-2 list-none ps-0">
+            <li class="flex gap-2"><i class="bi bi-1-circle text-blue-400 mt-0.5"></i> Click a cell or use arrow keys</li>
+            <li class="flex gap-2"><i class="bi bi-2-circle text-blue-400 mt-0.5"></i> Type 1-9 or use the number pad</li>
+            <li class="flex gap-2"><i class="bi bi-3-circle text-blue-400 mt-0.5"></i> Press <kbd class="px-1 bg-slate-700 rounded text-xs">N</kbd> for notes / candidates</li>
+            <li class="flex gap-2"><i class="bi bi-4-circle text-blue-400 mt-0.5"></i> Use Hint when stuck</li>
+            <li class="flex gap-2"><i class="bi bi-5-circle text-blue-400 mt-0.5"></i> Check Progress for live feedback</li>
+          </ul>
+        </div>
+
+        <div class="stat-card rounded-2xl p-5">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <i class="bi bi-keyboard-fill"></i> Shortcuts
+          </h2>
+          <div class="text-xs text-slate-400 space-y-1.5 font-mono">
+            <div class="flex justify-between"><span>1-9</span><span>Place number</span></div>
+            <div class="flex justify-between"><span>←↑↓→</span><span>Move</span></div>
+            <div class="flex justify-between"><span>N</span><span>Toggle notes</span></div>
+            <div class="flex justify-between"><span>Del / Backspace</span><span>Erase</span></div>
+            <div class="flex justify-between"><span>H</span><span>Hint</span></div>
+            <div class="flex justify-between"><span>C</span><span>Check</span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100;"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/static/js/sudoku.js"></script>
+</body>
+</html>
